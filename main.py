@@ -78,14 +78,20 @@ def build_note(text: str, dt: datetime) -> tuple[str, str]:
 async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info("--- on_message called ---")
 
-    if not update.message:
-        logger.warning("update.message is None, skipping")
+    msg = update.message or update.channel_post
+
+    if not msg:
+        logger.warning("No message and no channel_post, skipping")
         return
 
-    msg = update.message
     logger.info("Incoming chat_id: %s (expected: %s)", msg.chat_id, CHAT_ID)
     logger.info("Chat type: %s", msg.chat.type)
-    logger.info("From user: %s (id=%s)", msg.from_user.username, msg.from_user.id)
+
+    # from_user отсутствует в каналах
+    if msg.from_user:
+        logger.info("From user: %s (id=%s)", msg.from_user.username, msg.from_user.id)
+    else:
+        logger.info("From user: (channel post, no user)")
 
     if msg.chat_id != CHAT_ID:
         logger.warning("chat_id mismatch! got=%s expected=%s — ignoring", msg.chat_id, CHAT_ID)
@@ -108,12 +114,12 @@ async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error("✗ push failed")
         await msg.reply_text("⚠️ Не сохранилось — проверь логи Railway")
 
-
 # ─── Entry point ──────────────────────────────────────────
 def main():
     logger.info("Building application...")
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_message))
+    app.add_handler(MessageHandler(filters.UpdateType.CHANNEL_POSTS & filters.TEXT, on_message))
     logger.info("Bot running, waiting for messages...")
     app.run_polling(drop_pending_updates=True)
 
